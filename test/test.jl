@@ -14,16 +14,15 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-load("PLX")
 using PLX
 
 # Unfortunately, these test files come from the SDK provided by Plexon Inc. and 
 # are assumed not to be redistributable 
 
 try
-	PLXFile("tests/plexon/ts_freq_zero.plx")
+	PLXFile("test/OfflineSDK/mexPlex/tests/ts_freq_zero.plx")
 	error("Attempt to read ts_freq_zero.plx should throw")
 catch x
 end
-PLXFile("tests/plexon/strobed_negative.plx")
-PLXFile("tests/plexon/waveform_freq_zero.plx")
+PLXFile("test/OfflineSDK/mexPlex/tests/strobed_negative.plx")
+PLXFile("test/OfflineSDK/mexPlex/tests/waveform_freq_zero.plx")

@@ -19,7 +19,7 @@
 module PLX
 using Base
 
-import Base.length, Base.read, Base.search_sorted_last, Base.search_sorted_first, Base.ref
+import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst, Base.ref, Base.isequal
 
 export PL_FileHeader, PL_ChanHeader, PL_EventHeader, PL_SlowChannelHeader, SampleTimes, PLXUnit,
 	PLXSpikeChannel, PLXEventChannel, PLXContinuousChannel, PLXFile, sample_index, dt, frequency
@@ -34,10 +34,10 @@ macro struct(typename, contents)
 		error("Invalid struct declaration")
 	end
 
-	blk = expr(:call, typename)
+	blk = Expr(:call, typename)
 
 	for typedecl in contents.args
-		if isa(typedecl, LineNumberNode)
+		if typedecl.head == :line
 			continue
 		elseif typedecl.head != :(::)
 			error("Invalid struct declaration")
@@ -52,13 +52,13 @@ macro struct(typename, contents)
 
 			if contains((:ASCIIString, :UTF8String, :String), fieldtype.args[1])
 				typedecl.args[2] = fieldtype.args[1]
-				push(blk.args, :(struct_string($(fieldtype.args[1] == :ASCIIString ? :ascii : :utf8), read(ios, Uint8, ($(fieldtype.args[2:end]...))))))
+				push!(blk.args, :(struct_string($(fieldtype.args[1] == :ASCIIString ? :ascii : :utf8), read(ios, Uint8, ($(fieldtype.args[2:end]...))))))
 			else
 				typedecl.args[2] = :(Array{$(fieldtype.args[1]), $(length(fieldtype.args)-1)})
-				push(blk.args, :(read(ios, $(fieldtype.args[1]), ($(transpose(fieldtype.args[2:end])...)))))
+				push!(blk.args, :(read(ios, $(fieldtype.args[1]), ($(transpose(fieldtype.args[2:end])...)))))
 			end
 		else
-			push(blk.args, :(read(ios, $fieldtype)))
+			push!(blk.args, :(read(ios, $fieldtype)))
 		end
 	end
 	
@@ -264,7 +264,8 @@ type PLXFile <: SpikeFile
 		end
 
 		max_unit = 0
-		x.spike_channels = typeof(x.spike_channels)(x.header.NumDSPChannels)
+		x.spike_channels = typeof(x.spike_channels)()
+		sizehint(x.spike_channels, x.header.NumDSPChannels)
 		for i=1:x.header.NumDSPChannels
 			header = read(ios, PL_ChanHeader)
 			ch = convert(Int16, header.Channel)
@@ -274,14 +275,16 @@ type PLXFile <: SpikeFile
 			end
 		end
 
-		x.event_channels = typeof(x.event_channels)(x.header.NumEventChannels)
+		x.event_channels = typeof(x.event_channels)()
+		sizehint(x.spike_channels, x.header.NumEventChannels)
 		for i=1:x.header.NumEventChannels
 			header = read(ios, PL_EventHeader)
 			ch = convert(Int16, header.Channel)
 			x.event_channels[ch] = PLXEventChannel(x, header)
 		end
 
-		x.continuous_channels = typeof(x.continuous_channels)(x.header.NumSlowChannels)
+		x.continuous_channels = typeof(x.continuous_channels)()
+		sizehint(x.spike_channels, x.header.NumSlowChannels)
 		for i=1:x.header.NumSlowChannels
 			header = read(ios, PL_SlowChannelHeader)
 			ch = convert(Int16, header.Channel)
@@ -438,7 +441,7 @@ end
 
 # Find the timestamp at a given point (not dividing by timestamp_frequency)
 function _int_ref(x::SampleTimes, y::Int)
-	index = search_sorted_last(x.timestamp_indices, y)
+	index = searchsortedlast(x.timestamp_indices, y)
 	if index == 0
 		throw(BoundsError())
 	end
@@ -540,8 +543,8 @@ dt(x::SampleTimes) = x.sample_dt/x.timestamp_frequency
 frequency(x::SampleTimes) = x.timestamp_frequency/x.sample_dt
 
 # Integer sample indices
-search_sorted_first(x::SampleTimes, y::Real) = ifloor(_sample_index(x, y))
-search_sorted_last(x::SampleTimes, y::Real) = iceil(_sample_index(x, y))
+searchsortedfirst(x::SampleTimes, y::Real) = ifloor(_sample_index(x, y))
+searchsortedlast(x::SampleTimes, y::Real) = iceil(_sample_index(x, y))
 sample_index(x::SampleTimes, y::Real) = iround(_sample_index(x, y))
 sample_index(x::SampleTimes, y1::Real, y2::Real) = iround(_sample_index(x, y1)):iround(_sample_index(x, y2))
 sample_index{T <: Real}(x::SampleTimes, y::Vector{T}) = [sample_index(x, z) for z in y]
