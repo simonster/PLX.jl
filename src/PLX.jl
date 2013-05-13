@@ -103,8 +103,8 @@ end
 
 	Padding::Uint8(46)
 
-	TSCounts::Int32(130, 5)
-	WFCounts::Int32(130, 5)
+	TSCounts::Int32(5, 130)
+	WFCounts::Int32(5, 130)
 
 	EVCounts::Int32(512)
 end
@@ -121,10 +121,10 @@ end
 	Threshold::Int32
 	Method::Int32
 	NUnits::Int32
-	Template::Int16(5, 64)
+	Template::Int16(64, 5)
 	Fit::Int32(5)
 	SortWidth::Int32
-	Boxes::Int16(5, 2, 4)
+	Boxes::Int16(4, 2, 5)
 	SortBeg::Int32
 	Comment::ASCIIString(128)
 	Padding::Int32(11)
@@ -177,8 +177,8 @@ type PLXUnit
 	spike_waveforms::Union(Array{Int16, 2}, Nothing)
 	voltage_multiplier::Float64
 
-	PLXUnit(channel::SpikeChannel, n_spikes::Int, load_waveforms::Bool) = new(Array(Float64, n_spikes),
-		load_waveforms ? Array(Int16, (n_spikes, convert(Int64, channel.points_per_waveform))) : nothing,
+	PLXUnit(channel::SpikeChannel, n_spikes::Int, waveforms::Bool=false) = new(Array(Float64, n_spikes),
+		waveforms ? Array(Int16, (n_spikes, convert(Int64, channel.points_per_waveform))) : nothing,
 		channel.voltage_multiplier)
 end
 
@@ -242,9 +242,7 @@ type PLXFile <: SpikeFile
 	event_channels::Dict{Int16, PLXEventChannel}
 	continuous_channels::Dict{Int16, PLXContinuousChannel}
 
-	PLXFile(file_name::String) = PLXFile(file_name, true, false)
-	PLXFile(file_name::String, load_lfps::Bool) = PLXFile(file_name, load_lfps, false)
-	function PLXFile(file_name::String, load_lfps::Bool, load_waveforms::Bool)
+	function PLXFile(file_name::String; lfps::Bool=true, waveforms::Bool=false)
 		const maxChannels = 32*1024
 
 		x = new()
@@ -300,7 +298,7 @@ type PLXFile <: SpikeFile
 		n_samples = zeros(Int, size(n_timestamps))
 
 		n_blocks = 0
-		seek_end(ios)
+		seekend(ios)
 		fsize = position(ios)
 		max_offset = div(fsize-data_offset, 2)
 		contents = mmap_array(Int16, (1, max_offset), ios, data_offset)
@@ -326,9 +324,9 @@ type PLXFile <: SpikeFile
 
 		# Allocate
 		for (i, channel)=x.spike_channels
-			channel.unclustered = PLXUnit(channel, n_spikes[i, 1], load_waveforms)
+			channel.unclustered = PLXUnit(channel, n_spikes[i, 1], waveforms)
 			for j=1:channel.header.NUnits
-				channel.units[j] = PLXUnit(channel, n_spikes[i, j+1], load_waveforms)
+				channel.units[j] = PLXUnit(channel, n_spikes[i, j+1], waveforms)
 			end
 		end
 		for (i, channel)=x.event_channels
@@ -344,8 +342,8 @@ type PLXFile <: SpikeFile
 			if sample_dt % 1 != 0
 				error("Channel $i frequency $(channel.header.ADFreq) is non-integer multiple of AD frequency $(x.header.ADFrequency)")
 			end
-			channel.samples = Array(Int16, load_lfps ? n_samples[i+1]+1 : 0)
-			channel.times = SampleTimes(load_lfps ? n_timestamps[i+1] : 0, x.header.ADFrequency, int64(sample_dt))
+			channel.samples = Array(Int16, lfps ? n_samples[i+1]+1 : 0)
+			channel.times = SampleTimes(lfps ? n_timestamps[i+1] : 0, x.header.ADFrequency, int64(sample_dt))
 		end
 
 		# Read through the file again
@@ -373,7 +371,7 @@ type PLXFile <: SpikeFile
 				unit.spike_times[c] = timestamp/x.header.ADFrequency
 
 				block_waveforms = contents[cur_offset+7]
-				if load_waveforms
+				if waveforms
 					# Unrolling doesn't seem to help here
 					unit.spike_waveforms[c, :] = block_waveforms == 0 ? -32768 : contents[cur_offset+8:cur_offset+8+block_waveforms-1]
 				end
@@ -390,7 +388,7 @@ type PLXFile <: SpikeFile
 				block_samples = contents[cur_offset+7]
 				if block_samples > 0
 					t = (cur_timestamp[ch+1] += 1)
-					if load_lfps
+					if lfps
 						channel = x.continuous_channels[ch]
 						c = cur_sample[ch+1]
 
@@ -416,7 +414,7 @@ type PLXFile <: SpikeFile
 		@assert cur_timestamp == n_timestamps
 		@assert cur_sample == n_samples
 
-		if load_lfps
+		if lfps
 			for (i, channel)=x.continuous_channels
 				times = channel.times
 				if !isempty(times.timestamp_indices)
