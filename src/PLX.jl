@@ -173,16 +173,19 @@ type SampleTimes
 end
 
 type PLXUnit
+	id::Uint64
 	spike_times::Vector{Float64}
 	spike_waveforms::Union(Array{Int16, 2}, Nothing)
 	voltage_multiplier::Float64
 
-	PLXUnit(channel::SpikeChannel, n_spikes::Int, waveforms::Bool=false) = new(Array(Float64, n_spikes),
-		waveforms ? Array(Int16, (n_spikes, convert(Int64, channel.points_per_waveform))) : nothing,
-		channel.voltage_multiplier)
+	PLXUnit(unit_number::Int, channel::SpikeChannel, n_spikes::Int, waveforms::Bool=false) =
+		new(hash((channel.id, unit_number)), Array(Float64, n_spikes),
+			waveforms ? Array(Int16, (n_spikes, convert(Int64, channel.points_per_waveform))) : nothing,
+			channel.voltage_multiplier)
 end
 
 type PLXSpikeChannel <: SpikeChannel
+	id::Uint64
 	header::PL_ChanHeader
 	units::Vector{PLXUnit}
 	unclustered::PLXUnit
@@ -190,7 +193,7 @@ type PLXSpikeChannel <: SpikeChannel
 	points_per_waveform::Int32
 
 	function PLXSpikeChannel(plxfile::SpikeFile, header::PL_ChanHeader)
-		x = new(header)
+		x = new(hash((plxfile.id, header.Channel)), header)
 		x.units = Array(PLXUnit, header.NUnits)
 		x.voltage_multiplier = if plxfile.header.Version >= 105
 				plxfile.header.SpikeMaxMagnitudeMV/
@@ -215,13 +218,14 @@ type PLXEventChannel
 end
 
 type PLXContinuousChannel
+	id::Uint64
 	header::PL_SlowChannelHeader
 	samples::Vector{Int16}
 	times::SampleTimes
 	voltage_multiplier::Float64
 
 	function PLXContinuousChannel(plxfile::SpikeFile, header::PL_SlowChannelHeader)
-		x = new(header)
+		x = new(hash((plxfile.id, header.Channel+1)), header)
 
 		x.voltage_multiplier = if plxfile.header.Version >= 103
 				plxfile.header.SlowMaxMagnitudeMV/
@@ -237,6 +241,7 @@ type PLXContinuousChannel
 end
 
 type PLXFile <: SpikeFile
+	id::Uint64
 	header::PL_FileHeader
 	spike_channels::Dict{Int16, PLXSpikeChannel}
 	event_channels::Dict{Int16, PLXEventChannel}
@@ -260,6 +265,8 @@ type PLXFile <: SpikeFile
 		elseif x.header.NumPointsWave <= 0
 			error("PLX file header specifies no points in waveform")
 		end
+
+		x.id = hash((x.header.Year, x.header.Month, x.header.Day, x.header.Hour, x.header.Minute, x.header.Second))
 
 		max_unit = 0
 		x.spike_channels = typeof(x.spike_channels)()
@@ -324,9 +331,9 @@ type PLXFile <: SpikeFile
 
 		# Allocate
 		for (i, channel)=x.spike_channels
-			channel.unclustered = PLXUnit(channel, n_spikes[i, 1], waveforms)
+			channel.unclustered = PLXUnit(0, channel, n_spikes[i, 1], waveforms)
 			for j=1:channel.header.NUnits
-				channel.units[j] = PLXUnit(channel, n_spikes[i, j+1], waveforms)
+				channel.units[j] = PLXUnit(j, channel, n_spikes[i, j+1], waveforms)
 			end
 		end
 		for (i, channel)=x.event_channels
