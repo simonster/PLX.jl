@@ -180,7 +180,7 @@ type PLXUnit
 
 	PLXUnit(unit_number::Int, channel::SpikeChannel, n_spikes::Int, waveforms::Bool=false) =
 		new(hash((channel.id, unit_number)), Array(Float64, n_spikes),
-			waveforms ? Array(Int16, (n_spikes, convert(Int64, channel.points_per_waveform))) : nothing,
+			waveforms ? Array(Int16, (n_spikes, convert(Int, channel.points_per_waveform))) : nothing,
 			channel.voltage_multiplier)
 end
 
@@ -243,9 +243,9 @@ end
 type PLXFile <: SpikeFile
 	id::Uint64
 	header::PL_FileHeader
-	spike_channels::Dict{Int16, PLXSpikeChannel}
-	event_channels::Dict{Int16, PLXEventChannel}
-	continuous_channels::Dict{Int16, PLXContinuousChannel}
+	spike_channels::Dict{Int, PLXSpikeChannel}
+	event_channels::Dict{Int, PLXEventChannel}
+	continuous_channels::Dict{Int, PLXContinuousChannel}
 
 	function PLXFile(file_name::String; lfps::Bool=true, waveforms::Bool=false)
 		const maxChannels = 32*1024
@@ -269,39 +269,39 @@ type PLXFile <: SpikeFile
 		x.id = hash((x.header.Year, x.header.Month, x.header.Day, x.header.Hour, x.header.Minute, x.header.Second))
 
 		max_unit = 0
-		x.spike_channels = typeof(x.spike_channels)()
+		x.spike_channels = Dict{Int, PLXSpikeChannel}()
 		sizehint(x.spike_channels, x.header.NumDSPChannels)
 		for i=1:x.header.NumDSPChannels
 			header = read(ios, PL_ChanHeader)
-			ch = convert(Int16, header.Channel)
+			ch = convert(Int, header.Channel)
 			x.spike_channels[ch] = PLXSpikeChannel(x, header)
 			if header.NUnits > max_unit
 				max_unit = header.NUnits
 			end
 		end
 
-		x.event_channels = typeof(x.event_channels)()
+		x.event_channels = Dict{Int, PLXEventChannel}()
 		sizehint(x.spike_channels, x.header.NumEventChannels)
 		for i=1:x.header.NumEventChannels
 			header = read(ios, PL_EventHeader)
-			ch = convert(Int16, header.Channel)
+			ch = convert(Int, header.Channel)
 			x.event_channels[ch] = PLXEventChannel(x, header)
 		end
 
-		x.continuous_channels = typeof(x.continuous_channels)()
+		x.continuous_channels = Dict{Int, PLXContinuousChannel}()
 		sizehint(x.spike_channels, x.header.NumSlowChannels)
 		for i=1:x.header.NumSlowChannels
 			header = read(ios, PL_SlowChannelHeader)
-			ch = convert(Int16, header.Channel)
+			ch = convert(Int, header.Channel)
 			x.continuous_channels[ch] = PLXContinuousChannel(x, header)
 		end
 
 		data_offset = position(ios)
 
 		# Read through the file once to determine how much memory to allocate
-		n_spikes = zeros(Int, (convert(Int64, max(keys(x.spike_channels))), max_unit+1))
-		n_events = zeros(Int, max(keys(x.event_channels)))
-		n_timestamps = zeros(Int, max(keys(x.continuous_channels))+1)
+		n_spikes = zeros(Int, (convert(Int, maximum(keys(x.spike_channels))), max_unit+1))
+		n_events = zeros(Int, maximum(keys(x.event_channels)))
+		n_timestamps = zeros(Int, maximum(keys(x.continuous_channels))+1)
 		n_samples = zeros(Int, size(n_timestamps))
 
 		n_blocks = 0
@@ -364,7 +364,7 @@ type PLXFile <: SpikeFile
 			timestamp = (convert(Int64, reinterpret(Uint16, contents[cur_offset+1])) << 32) +
 				reinterpret(Uint16, contents[cur_offset+2]) +
 				(convert(Int64, reinterpret(Uint16, contents[cur_offset+3])) << 16)
-			ch = contents[cur_offset+4]
+			ch = convert(Int, contents[cur_offset+4])
 
 			if block_type == 1			# spike
 				unit_number = contents[cur_offset+5]
