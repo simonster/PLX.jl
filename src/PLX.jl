@@ -50,7 +50,7 @@ macro struct(typename, contents)
 			end
 			# Type has size parameters
 
-			if contains((:ASCIIString, :UTF8String, :String), fieldtype.args[1])
+			if fieldtype.args[1] in (:ASCIIString, :UTF8String, :String)
 				typedecl.args[2] = fieldtype.args[1]
 				push!(blk.args, :(struct_string($(fieldtype.args[1] == :ASCIIString ? :ascii : :utf8), read(ios, Uint8, ($(fieldtype.args[2:end]...))))))
 			else
