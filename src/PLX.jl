@@ -180,7 +180,7 @@ type PLXUnit
 
 	PLXUnit(unit_number::Int, channel::SpikeChannel, n_spikes::Int, waveforms::Bool=false) =
 		new(hash((channel.id, unit_number)), Array(Float64, n_spikes),
-			waveforms ? Array(Int16, (n_spikes, convert(Int, channel.points_per_waveform))) : nothing,
+			waveforms ? Array(Int16, (convert(Int, channel.points_per_waveform), n_spikes)) : nothing,
 			channel.voltage_multiplier)
 end
 
@@ -349,7 +349,7 @@ type PLXFile <: SpikeFile
 			if sample_dt % 1 != 0
 				error("Channel $i frequency $(channel.header.ADFreq) is non-integer multiple of AD frequency $(x.header.ADFrequency)")
 			end
-			channel.samples = Array(Int16, lfps ? n_samples[i+1]+1 : 0)
+			channel.samples = Array(Int16, lfps ? n_samples[i+1] : 0)
 			channel.times = SampleTimes(lfps ? n_timestamps[i+1] : 0, x.header.ADFrequency, int64(sample_dt))
 		end
 
@@ -380,7 +380,7 @@ type PLXFile <: SpikeFile
 				block_waveforms = contents[cur_offset+7]
 				if waveforms
 					# Unrolling doesn't seem to help here
-					unit.spike_waveforms[c, :] = block_waveforms == 0 ? -32768 : contents[cur_offset+8:cur_offset+8+block_waveforms-1]
+					unit.spike_waveforms[:, c] = block_waveforms == 0 ? -32768 : contents[cur_offset+8:cur_offset+8+block_waveforms-1]
 				end
 				cur_offset += block_waveforms
 			elseif block_type == 4		# event
@@ -539,10 +539,14 @@ function optimize_times(x::SampleTimes)
 end
 
 # Allow indexing with integer indices (yields times) and float indices (yields integer indices)
-ref(x::SampleTimes, y::Union(Range{Int}, Range1{Int}, Int)) = _int_ref(x, y)/x.timestamp_frequency
-ref(x::SampleTimes, y::FloatingPoint) = sample_index(x, y)
+getindex(x::SampleTimes, y::Union(Range{Int}, Range1{Int}, Int)) = _int_ref(x, y)/x.timestamp_frequency
+getindex(x::SampleTimes, y::FloatingPoint) = sample_index(x, y)
 
 length(x::SampleTimes) = x.timestamp_indices[end]
+
+start(x::SampleTimes) = 1
+next(x::SampleTimes, state) = (x[state], state+1)
+done(x::SampleTimes, state) = state > length(x)
 
 dt(x::SampleTimes) = x.sample_dt/x.timestamp_frequency
 frequency(x::SampleTimes) = x.timestamp_frequency/x.sample_dt
