@@ -19,7 +19,7 @@
 module PLX
 using Base
 
-import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst, Base.ref, Base.isequal
+import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst, Base.ref
 
 export PL_FileHeader, PL_ChanHeader, PL_EventHeader, PL_SlowChannelHeader, SampleTimes, PLXUnit,
 	PLXSpikeChannel, PLXEventChannel, PLXContinuousChannel, PLXFile, sample_index, dt, frequency
@@ -439,10 +439,9 @@ type PLXFile <: SpikeFile
 	end
 end
 
-function isequal(A::SampleTimes, B::SampleTimes)
-	return A.timestamps == B.timestamps && A.timestamp_indices == B.timestamp_indices &&
-		A.timestamp_frequency == B.timestamp_frequency && A.sample_dt == B.sample_dt
-end
+Base.(:(==))(A::SampleTimes, B::SampleTimes) =
+	A.timestamps == B.timestamps && A.timestamp_indices == B.timestamp_indices &&
+	A.timestamp_frequency == B.timestamp_frequency && A.sample_dt == B.sample_dt
 
 # Find the timestamp at a given point (not dividing by timestamp_frequency)
 function _int_ref(x::SampleTimes, y::Int)
@@ -526,7 +525,7 @@ function optimize_times(x::SampleTimes)
 
 	ts_diff = diff(x.timestamps)
 	index_diff = diff(x.timestamp_indices)
-	keep = find(ts_diff .!= index_diff*x.sample_dt)+1
+	keep = find(ts_diff .!= index_diff*x.sample_dt).+1
 	last = length(x.timestamps)
 	if isempty(keep) || keep[end] != last
 		keep = [1, keep, last]
