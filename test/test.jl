@@ -24,8 +24,12 @@ if !isdir(testdir)
 	bundlezip = joinpath(parentdir, "Plexon Offline SDKs.zip")
 	run(download_cmd("http://www.plexon.com/sites/default/files/Plexon%20SDK%20Bundle.zip",
 		             bundlezip))
-	run(setenv(`unzip $bundlezip`, dir=parentdir))
-	run(setenv(`unzip $(joinpath(parentdir, "Plexon Offline SDKs", "Matlab Offline Files SDK.zip"))`, dir=parentdir))
+	cd(parentdir) do
+		run(`unzip $bundlezip`)
+	end
+	cd(parentdir) do
+		run(`unzip $(joinpath(parentdir, "Plexon Offline SDKs", "Matlab Offline Files SDK.zip"))`)
+	end
 end
 
 to_vec(x::Vector) = x
