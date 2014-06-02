@@ -19,7 +19,7 @@ To read a Plexon file without LFPs:
 ```julia
 load("PLX")
 using PLX
-plx = PLXFile("/path/to/plexon/file.plx", false)
+plx = PLXFile("/path/to/plexon/file.plx", lfps=false)
 ```
 
 To read a Plexon file including spike waveforms:
@@ -27,7 +27,7 @@ To read a Plexon file including spike waveforms:
 ```julia
 load("PLX")
 using PLX
-plx = PLXFile("/path/to/plexon/file.plx", false)
+plx = PLXFile("/path/to/plexon/file.plx", waveforms=true)
 ```
 
 To access spike times:
