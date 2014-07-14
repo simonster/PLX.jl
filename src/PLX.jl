@@ -19,7 +19,7 @@
 module PLX
 using Base
 
-import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst, Base.ref
+import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst
 
 export PL_FileHeader, PL_ChanHeader, PL_EventHeader, PL_SlowChannelHeader, SampleTimes, PLXUnit,
 	PLXSpikeChannel, PLXEventChannel, PLXContinuousChannel, PLXFile, sample_index, dt, frequency
@@ -538,8 +538,8 @@ function optimize_times(x::SampleTimes)
 end
 
 # Allow indexing with integer indices (yields times) and float indices (yields integer indices)
-getindex(x::SampleTimes, y::Union(Range{Int}, Range1{Int}, Int)) = _int_ref(x, y)/x.timestamp_frequency
-getindex(x::SampleTimes, y::FloatingPoint) = sample_index(x, y)
+Base.getindex(x::SampleTimes, y::Union(Range{Int}, Range1{Int}, Int)) = _int_ref(x, y)/x.timestamp_frequency
+Base.getindex(x::SampleTimes, y::FloatingPoint) = sample_index(x, y)
 
 length(x::SampleTimes) = x.timestamp_indices[end]
 
