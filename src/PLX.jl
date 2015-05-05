@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module PLX
-using Base
+using Compat
 
 import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst
 
@@ -270,7 +270,7 @@ type PLXFile <: SpikeFile
 
 		max_unit = 0
 		x.spike_channels = Dict{Int, PLXSpikeChannel}()
-		sizehint(x.spike_channels, x.header.NumDSPChannels)
+		sizehint!(x.spike_channels, x.header.NumDSPChannels)
 		for i=1:x.header.NumDSPChannels
 			header = read(ios, PL_ChanHeader)
 			ch = convert(Int, header.Channel)
@@ -281,7 +281,7 @@ type PLXFile <: SpikeFile
 		end
 
 		x.event_channels = Dict{Int, PLXEventChannel}()
-		sizehint(x.spike_channels, x.header.NumEventChannels)
+		sizehint!(x.spike_channels, x.header.NumEventChannels)
 		for i=1:x.header.NumEventChannels
 			header = read(ios, PL_EventHeader)
 			ch = convert(Int, header.Channel)
@@ -289,7 +289,7 @@ type PLXFile <: SpikeFile
 		end
 
 		x.continuous_channels = Dict{Int, PLXContinuousChannel}()
-		sizehint(x.spike_channels, x.header.NumSlowChannels)
+		sizehint!(x.spike_channels, x.header.NumSlowChannels)
 		for i=1:x.header.NumSlowChannels
 			header = read(ios, PL_SlowChannelHeader)
 			ch = convert(Int, header.Channel)
@@ -350,7 +350,7 @@ type PLXFile <: SpikeFile
 				error("Channel $i frequency $(channel.header.ADFreq) is non-integer multiple of AD frequency $(x.header.ADFrequency)")
 			end
 			channel.samples = Array(Int16, lfps ? n_samples[i+1] : 0)
-			channel.times = SampleTimes(lfps ? n_timestamps[i+1] : 0, x.header.ADFrequency, int64(sample_dt))
+			channel.times = SampleTimes(lfps ? n_timestamps[i+1] : 0, x.header.ADFrequency, @compat Int64(sample_dt))
 		end
 
 		# Read through the file again
@@ -453,7 +453,7 @@ function _int_ref(x::SampleTimes, y::Int)
 end
 
 # Find the timestamps in a given range (not dividing by timestamp_frequency)
-function _int_ref(x::SampleTimes, y::Union(Range{Int}, Range1{Int}))
+function _int_ref(x::SampleTimes, y::Range{Int})
 	n = length(y)
 	m = length(x.timestamps)
 
@@ -528,9 +528,9 @@ function optimize_times(x::SampleTimes)
 	keep = find(ts_diff .!= index_diff*x.sample_dt).+1
 	last = length(x.timestamps)
 	if isempty(keep) || keep[end] != last
-		keep = [1, keep, last]
+		keep = [1; keep; last]
 	else
-		keep = [1, keep]
+		keep = [1; keep]
 	end
 	x.timestamps = x.timestamps[keep]
 	x.timestamp_indices = x.timestamp_indices[keep]
@@ -538,7 +538,7 @@ function optimize_times(x::SampleTimes)
 end
 
 # Allow indexing with integer indices (yields times) and float indices (yields integer indices)
-Base.getindex(x::SampleTimes, y::Union(Range{Int}, Range1{Int}, Int)) = _int_ref(x, y)/x.timestamp_frequency
+Base.getindex(x::SampleTimes, y::Union(Range{Int}, Int)) = _int_ref(x, y)/x.timestamp_frequency
 Base.getindex(x::SampleTimes, y::FloatingPoint) = sample_index(x, y)
 
 length(x::SampleTimes) = x.timestamp_indices[end]
