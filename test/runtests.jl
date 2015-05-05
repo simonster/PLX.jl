@@ -22,7 +22,7 @@ testdir = joinpath(dirname(@__FILE__), "Matlab Offline Files SDK", "mexPlex", "t
 if !isdir(testdir)
 	parentdir = dirname(@__FILE__)
 	bundlezip = joinpath(parentdir, "Plexon Offline SDKs.zip")
-	run(download_cmd("http://www.plexon.com/sites/default/files/OmniPlex%20and%20MAP%20Offline%20SDK%20Bundle.zip",
+	run(download_cmd("http://www.plexon.com/sites/default/files/downloads/OmniPlex%20and%20MAP%20Offline%20SDK%20Bundle.zip",
 		             bundlezip))
 	cd(parentdir) do
 		run(`unzip $bundlezip`)
