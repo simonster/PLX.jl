@@ -24,7 +24,7 @@ import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst
 export PL_FileHeader, PL_ChanHeader, PL_EventHeader, PL_SlowChannelHeader, SampleTimes, PLXUnit,
 	PLXSpikeChannel, PLXEventChannel, PLXContinuousChannel, PLXFile, sample_index, dt, frequency
 
-function struct_string(fn::Function, bytes::Vector{Uint8})
+function struct_string(fn::Function, bytes::Vector{UInt8})
     last_byte = findfirst(bytes, 0)
     fn(last_byte == 0 ? bytes : bytes[1:last_byte-1])
 end
@@ -50,9 +50,9 @@ macro struct(typename, contents)
 			end
 			# Type has size parameters
 
-			if fieldtype.args[1] in (:ASCIIString, :UTF8String, :String)
+			if fieldtype.args[1] in (:ASCIIString, :UTF8String, :AbstractString)
 				typedecl.args[2] = fieldtype.args[1]
-				push!(blk.args, :(struct_string($(fieldtype.args[1] == :ASCIIString ? :ascii : :utf8), read(ios, Uint8, ($(fieldtype.args[2:end]...))))))
+				push!(blk.args, :(struct_string($(fieldtype.args[1] == :ASCIIString ? :ascii : :utf8), read(ios, UInt8, ($(fieldtype.args[2:end]...))))))
 			else
 				typedecl.args[2] = :(Array{$(fieldtype.args[1]), $(length(fieldtype.args)-1)})
 				push!(blk.args, :(read(ios, $(fieldtype.args[1]), ($(transpose(fieldtype.args[2:end])...)))))
@@ -72,7 +72,7 @@ macro struct(typename, contents)
 end
 
 @struct PL_FileHeader begin
-	MagicNumber::Uint32
+	MagicNumber::UInt32
 	Version::Int32
 	Comment::ASCIIString(128)
 	ADFrequency::Int32
@@ -93,15 +93,15 @@ end
 	WaveformFreq::Int32
 	LastTimestamp::Float64
 
-	Trodalness::Uint8
-	DataTrodalness::Uint8
-	BitsPerSpikeSample::Uint8
-	BitsPerSlowSample::Uint8
-	SpikeMaxMagnitudeMV::Uint16
-	SlowMaxMagnitudeMV::Uint16
-	SpikePreAmpGain::Uint16
+	Trodalness::UInt8
+	DataTrodalness::UInt8
+	BitsPerSpikeSample::UInt8
+	BitsPerSlowSample::UInt8
+	SpikeMaxMagnitudeMV::UInt16
+	SlowMaxMagnitudeMV::UInt16
+	SpikePreAmpGain::UInt16
 
-	Padding::Uint8(46)
+	Padding::UInt8(46)
 
 	TSCounts::Int32(5, 130)
 	WFCounts::Int32(5, 130)
@@ -160,10 +160,10 @@ type SampleTimes
 	# Indices of samples corresponding to each timestamp
 	timestamp_indices::Vector{Int}
 	# timestamps/timestamp_frequency gives times in seconds
-	timestamp_frequency::Uint64
+	timestamp_frequency::UInt64
 	# Distance between samples in units of 1/timestamp_frequency
 	# Sample frequency is timestamp_frequency/sample_dt
-	sample_dt::Uint64
+	sample_dt::UInt64
 
 	SampleTimes(n::Int, timestamp_frequency::Integer, sample_dt::Integer) =
 		new(Array(Int, n), Array(Int, n), timestamp_frequency, sample_dt)
@@ -173,9 +173,9 @@ type SampleTimes
 end
 
 type PLXUnit
-	id::Uint64
+	id::UInt64
 	spike_times::Vector{Float64}
-	spike_waveforms::Union(Array{Int16, 2}, Nothing)
+	spike_waveforms::Union{Array{Int16, 2}, Void}
 	voltage_multiplier::Float64
 
 	PLXUnit(unit_number::Int, channel::SpikeChannel, n_spikes::Int, waveforms::Bool=false) =
@@ -185,7 +185,7 @@ type PLXUnit
 end
 
 type PLXSpikeChannel <: SpikeChannel
-	id::Uint64
+	id::UInt64
 	header::PL_ChanHeader
 	units::Vector{PLXUnit}
 	unclustered::PLXUnit
@@ -212,13 +212,13 @@ end
 type PLXEventChannel
 	header::PL_EventHeader
 	times::Vector{Float64}
-	codes::Union(Vector{Int16}, Nothing)
+	codes::Union{Vector{Int16}, Void}
 
 	PLXEventChannel(plxfile::SpikeFile, header::PL_EventHeader) = new(header)
 end
 
 type PLXContinuousChannel
-	id::Uint64
+	id::UInt64
 	header::PL_SlowChannelHeader
 	samples::Vector{Int16}
 	times::SampleTimes
@@ -241,13 +241,13 @@ type PLXContinuousChannel
 end
 
 type PLXFile <: SpikeFile
-	id::Uint64
+	id::UInt64
 	header::PL_FileHeader
 	spike_channels::Dict{Int, PLXSpikeChannel}
 	event_channels::Dict{Int, PLXEventChannel}
 	continuous_channels::Dict{Int, PLXContinuousChannel}
 
-	function PLXFile(file_name::String; lfps::Bool=true, waveforms::Bool=false)
+	function PLXFile(file_name::AbstractString; lfps::Bool=true, waveforms::Bool=false)
 		const maxChannels = 32*1024
 
 		x = new()
@@ -308,7 +308,7 @@ type PLXFile <: SpikeFile
 		seekend(ios)
 		fsize = position(ios)
 		max_offset = div(fsize-data_offset, 2)
-		contents = mmap_array(Int16, (1, max_offset), ios, data_offset)
+		contents = Mmap.mmap(ios, Matrix{Int16}, (1, max_offset), data_offset)
 		cur_offset = 1
 		while cur_offset < max_offset
 			block_type = contents[cur_offset]
@@ -361,9 +361,9 @@ type PLXFile <: SpikeFile
 		cur_offset = 1
 		while cur_offset < max_offset
 			block_type = contents[cur_offset]
-			timestamp = (convert(Int64, reinterpret(Uint16, contents[cur_offset+1])) << 32) +
-				reinterpret(Uint16, contents[cur_offset+2]) +
-				(convert(Int64, reinterpret(Uint16, contents[cur_offset+3])) << 16)
+			timestamp = (convert(Int64, reinterpret(UInt16, contents[cur_offset+1])) << 32) +
+				reinterpret(UInt16, contents[cur_offset+2]) +
+				(convert(Int64, reinterpret(UInt16, contents[cur_offset+3])) << 16)
 			ch = convert(Int, contents[cur_offset+4])
 
 			if block_type == 1			# spike
@@ -538,8 +538,8 @@ function optimize_times(x::SampleTimes)
 end
 
 # Allow indexing with integer indices (yields times) and float indices (yields integer indices)
-Base.getindex(x::SampleTimes, y::Union(Range{Int}, Int)) = _int_ref(x, y)/x.timestamp_frequency
-Base.getindex(x::SampleTimes, y::FloatingPoint) = sample_index(x, y)
+Base.getindex(x::SampleTimes, y::Union{Range{Int}, Int}) = _int_ref(x, y)/x.timestamp_frequency
+Base.getindex(x::SampleTimes, y::AbstractFloat) = sample_index(x, y)
 
 length(x::SampleTimes) = x.timestamp_indices[end]
 
