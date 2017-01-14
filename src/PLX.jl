@@ -24,9 +24,9 @@ import Base.length, Base.read, Base.searchsortedlast, Base.searchsortedfirst
 export PL_FileHeader, PL_ChanHeader, PL_EventHeader, PL_SlowChannelHeader, SampleTimes, PLXUnit,
 	PLXSpikeChannel, PLXEventChannel, PLXContinuousChannel, PLXFile, sample_index, dt, frequency
 
-function struct_string(fn::Function, bytes::Vector{UInt8})
+function struct_string(bytes::Vector{UInt8})
     last_byte = findfirst(bytes, 0)
-    fn(last_byte == 0 ? bytes : bytes[1:last_byte-1])
+    String(last_byte == 0 ? bytes : bytes[1:last_byte-1])
 end
 
 macro struct(typename, contents)
@@ -50,9 +50,9 @@ macro struct(typename, contents)
 			end
 			# Type has size parameters
 
-			if fieldtype.args[1] in (:ASCIIString, :UTF8String, :AbstractString)
+			if fieldtype.args[1] in (:String, :AbstractString)
 				typedecl.args[2] = fieldtype.args[1]
-				push!(blk.args, :(struct_string($(fieldtype.args[1] == :ASCIIString ? :ascii : :utf8), read(ios, UInt8, ($(fieldtype.args[2:end]...))))))
+				push!(blk.args, :(struct_string(read(ios, UInt8, ($(fieldtype.args[2:end]...))))))
 			else
 				typedecl.args[2] = :(Array{$(fieldtype.args[1]), $(length(fieldtype.args)-1)})
 				push!(blk.args, :(read(ios, $(fieldtype.args[1]), ($(transpose(fieldtype.args[2:end])...)))))
@@ -74,7 +74,7 @@ end
 @struct PL_FileHeader begin
 	MagicNumber::UInt32
 	Version::Int32
-	Comment::ASCIIString(128)
+	Comment::String(128)
 	ADFrequency::Int32
 	NumDSPChannels::Int32
 	NumEventChannels::Int32
@@ -110,8 +110,8 @@ end
 end
 
 @struct PL_ChanHeader begin
-	Name::ASCIIString(32)
-	SIGName::ASCIIString(32)
+	Name::String(32)
+	SIGName::String(32)
 	Channel::Int32
 	WFRate::Int32
 	SIG::Int32
@@ -126,19 +126,19 @@ end
 	SortWidth::Int32
 	Boxes::Int16(4, 2, 5)
 	SortBeg::Int32
-	Comment::ASCIIString(128)
+	Comment::String(128)
 	Padding::Int32(11)
 end
 
 @struct PL_EventHeader begin
-	Name::ASCIIString(32)
+	Name::String(32)
 	Channel::Int32
-	Comment::ASCIIString(128)
+	Comment::String(128)
 	Padding::Int32(33)
 end
 
 @struct PL_SlowChannelHeader begin
-	Name::ASCIIString(32)
+	Name::String(32)
 	Channel::Int32
 	ADFreq::Int32
 	Gain::Int32
@@ -147,7 +147,7 @@ end
 
 	SpikeChannel::Int32
 
-	Comment::ASCIIString(128)
+	Comment::String(128)
 	Padding::Int32(28)
 end
 
@@ -439,7 +439,7 @@ type PLXFile <: SpikeFile
 	end
 end
 
-Base.(:(==))(A::SampleTimes, B::SampleTimes) =
+Base.:(==)(A::SampleTimes, B::SampleTimes) =
 	A.timestamps == B.timestamps && A.timestamp_indices == B.timestamp_indices &&
 	A.timestamp_frequency == B.timestamp_frequency && A.sample_dt == B.sample_dt
 
